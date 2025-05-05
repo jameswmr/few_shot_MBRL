@@ -1,0 +1,14 @@
+name: EV_DRL
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.8.16
+  - matplotlib
+  - imageio
+  - imageio-ffmpeg
+  - gym
+  - tqdm
+  - pip
+  - pip:
+      - wandb
