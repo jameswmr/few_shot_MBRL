@@ -26,3 +26,5 @@ Run to generate new `dummyDemo_video.mp4` and `cup_trajectory.png` files.
 python gym_env/env_push_one.py
 ```
 
+# Run baseline
+Check scripts/train_task_policy.py for example
