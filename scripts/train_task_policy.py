@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import argparse
 import wandb
@@ -8,6 +9,8 @@ from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from gym_env.utilities import ENV_CONTEXTS, SAC_CONFIG, PPO_CONFIG
 from gym_env.utilities import RandomContextStateWrapper, NormalizeActionSpaceWrapper
 from scripts.utilities import set_seed
@@ -28,7 +31,7 @@ def main(args):
     # Set the random seed for reproducibility
     set_seed(args.seed)
 
-    env = SubprocVecEnv([make_env(args.env_name, args.dr) for _ in range(args.n_envs)])
+    env = DummyVecEnv([make_env(args.env_name, args.dr) for _ in range(args.n_envs)])
 
     # Initialize Weights and Biases (W&B) for experiment tracking
     run = wandb.init(
