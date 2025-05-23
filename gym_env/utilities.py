@@ -275,6 +275,10 @@ class RandomContextStateWrapper(ContextStateWrapper):
         random_context_dict = {}
         for context_name, (lb, ub) in self.interested_context_range.items():
             random_context_dict[context_name] = np.random.uniform(lb, ub)
+        # random_context_dict["dynamic@knob_g0@damping_ratio"] = -3
+        # random_context_dict["dynamic@x_left_wall_g0@damping_ratio"] = -3
+        # random_context_dict["dynamic@x_right_wall_g0@damping_ratio"] = -3
+        # random_context_dict["dynamic@y_front_wall_g0@damping_ratio"] = -3
         # reset the environment and set the context
         self.env.reset()
         self.env.set_context(random_context_dict)

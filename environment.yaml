@@ -7,8 +7,11 @@ dependencies:
   - matplotlib
   - imageio
   - imageio-ffmpeg
-  - gym
   - tqdm
-  - pip
+  - pip=21
   - pip:
       - wandb
+      - setuptools==65.5.0
+      - wheel==0.38.0
+      - stable_baselines3==1.8.0
+      - gym==0.21.0
