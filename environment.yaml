@@ -15,3 +15,4 @@ dependencies:
       - wheel==0.38.0
       - stable_baselines3==1.8.0
       - gym==0.21.0
+      - tensorboardX

@@ -28,3 +28,5 @@ python gym_env/env_push_one.py
 
 # Run baseline
 Check scripts/train_task_policy.py for example
+
+python -m few_shot_MBRL.baseline2.train_stage1

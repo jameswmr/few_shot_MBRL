@@ -47,6 +47,33 @@ class PusherOneSingleAction(gym.Env):
         )
         self.context = {}
         self._seed = None
+        
+    def _cup_geom_info(self):
+        """
+        Robustly returns (radius, height, mass, com_offset[3]) for the cup,
+        without assuming any non-standard attributes.
+        """
+        cup = self.env.cup
+        sim = self.env.sim
+
+        # -------- radius & height --------
+        if hasattr(cup, "size"): 
+            radius, height = cup.size
+        elif hasattr(cup, "_size"):
+            radius, height = cup._size
+        else:
+            body_id  = self.env.cup_body_id
+            geomadr  = sim.model.body_geomadr[body_id]
+            gid      = geomadr
+            radius, height = sim.model.geom_size[gid][:2]
+
+        # -------- mass & COM offset -------
+        body_id = self.env.cup_body_id
+        mass    = sim.model.body_mass[body_id]
+        com_off = sim.model.body_ipos[body_id]
+
+        return radius, height, mass, com_off
+
 
     def step(self, action, writer=None):
         """
@@ -125,7 +152,7 @@ class PusherOneSingleAction(gym.Env):
             "success": self.env._check_success(),
             "dist_to_goal": self.env.get_cup_to_goal(),
             "render_image": camera_view,
-            "env_params": np.array(self.env.cup_init_pos[:2]),
+            "env_params": self.env_params,                         
             "contact_wall": self.env.check_contact_with_wall(),
             "on_edge": self.env.check_on_edge(),
         }
@@ -146,6 +173,15 @@ class PusherOneSingleAction(gym.Env):
 
     def reset(self):
         self.env.reset()
+        # -------- build 9-D env_params -------- #
+        pos_xy   = self.env.cup_init_pos[:2]                       
+        radius, height, mass, com = self._cup_geom_info()      
+        friction = np.array([self.env.table_friction[0]])   
+    
+        self.env_params = np.concatenate(
+            [pos_xy, [radius], [height], [mass], com, friction]
+        ).astype(np.float32)
+    
         return self.get_obs()
 
     def render(self):
