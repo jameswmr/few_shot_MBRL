@@ -23,7 +23,7 @@ def make_config(
     num_steps: int,
     *,
     horizon_length: int = 16,
-    num_actors: int = 1,
+    num_actors: int = 16,
 ) -> AttrDict:
     """Return an AttrDict configuration understood by PPO."""
 
@@ -88,6 +88,12 @@ class DeviceWrapper(gym.Wrapper):
     def _to_device(self, obj):
         if isinstance(obj, torch.Tensor):
             return obj.to(self.device)
+        if isinstance(obj, np.ndarray):                      
+            return torch.as_tensor(obj, dtype=torch.float32,
+                                   device=self.device)
+        if isinstance(obj, (float, int)):                    
+            return torch.tensor(obj, dtype=torch.float32,
+                                device=self.device)
         if isinstance(obj, dict):
             return {k: self._to_device(v) for k, v in obj.items()}
         return obj
@@ -129,20 +135,25 @@ def main():
         # fall‑back to PushOneTask if task map is missing
         from few_shot_MBRL.baseline2.envs.push_one_task import PushOneTask as TaskCls
 
-    raw_env = TaskCls(sim_device=args.device, graphics_device_id=0, headless=args.headless)
-    env = DeviceWrapper(raw_env, args.device)
-    # def make_env(seed):
-    #     def _thunk():
-    #         env = TaskCls(sim_device=args.device, graphics_device_id=0, headless=args.headless)
-    #         env.seed(seed)
-    #         return DeviceWrapper(env, args.device)
-    #     return _thunk
+    from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
+    def make_env(rank):
+        def _thunk():
+            env = TaskCls(sim_device='cpu', graphics_device_id=0, headless=args.headless)
+            env.seed(rank)
+            return env
+        return _thunk
 
-    # if args.num_actors > 1:
-    # env = gym.vector.SyncVectorEnv([make_env(s) for s in range(8)])
-    # else:
-    #     env = DeviceWrapper(raw_env, args.device)
-
+    vec_env = SubprocVecEnv([make_env(r) for r in range(16)])
+    env = DeviceWrapper(vec_env, args.device)
+    # import time, numpy as np
+    # t = []; env.reset()
+    # for _ in range(100):
+    #     tic = time.time()
+    #     obs, r, dones, info = env.step(env.action_space.sample())
+    #     t.append(time.time() - tic)
+    #     if dones.any():
+    #         env.reset()
+    # print("mean step ms:", np.mean(t)*1e3)
     from few_shot_MBRL.baseline2.ppo.ppo import PPO
 
     agent = PPO(env, args.out_dir, cfg)

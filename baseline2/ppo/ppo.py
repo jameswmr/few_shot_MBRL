@@ -74,6 +74,11 @@ class PPO:
         self.act_low = torch.as_tensor(act_space.low, dtype=torch.float32, device=self.device)
         self.act_high = torch.as_tensor(act_space.high, dtype=torch.float32, device=self.device)
         self.obs_shape = env.observation_space.shape  # (obs_dim,)
+        obs_space = env.observation_space
+        if isinstance(obs_space, gym.spaces.Dict):
+            self.obs_shape = obs_space["obs"].shape
+        else:
+            self.obs_shape = obs_space.shape 
 
         # model
         model_cfg = dict(
@@ -338,8 +343,11 @@ class PPO:
     # ----------------------- model act ---------------------------------- #
     def _model_act(self, obs_dict):
         obs_norm = self.obs_ms(obs_dict["obs"])
-        res = self.model.act({"obs": obs_norm, "priv_info": obs_dict["priv_info"]})
-        res["values"] = self.val_ms(res["values"], True)  # update stats
+        res = self.model.act({
+            "obs":        obs_norm,
+            "priv_info":  obs_dict["priv_info"]
+        })
+        res["values"] = self.val_ms(res["values"], True)
         return res
 
     # ----------------------- utils -------------------------------------- #

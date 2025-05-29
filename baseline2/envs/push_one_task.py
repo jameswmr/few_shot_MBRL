@@ -15,8 +15,12 @@ class PushOneTask(gym.Env):
         self.env = PusherOneSingleAction(render=False)
         
         self.action_space      = self.env.action_space                
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf,
-                                            shape=(2,), dtype=np.float32)
+        self.observation_space = spaces.Dict(
+            {
+                "obs":  spaces.Box(low=-np.inf, high=np.inf, shape=(2,), dtype=np.float32),
+                "priv_info": spaces.Box(low=-np.inf, high=np.inf, shape=(9,), dtype=np.float32),
+            }
+        )
         
         self.priv_keys = [
             "cup_init_pos_x",                
@@ -36,23 +40,15 @@ class PushOneTask(gym.Env):
 
 
     def reset(self):
-        obs_raw = self.env.reset()
-        if isinstance(obs_raw, tuple):
-            obs_raw = obs_raw[0]
-
-        priv = self._extract_priv()
-        return {"obs": torch.tensor(obs_raw, dtype=torch.float32),
-                "priv_info": priv}
+        obs  = self.env.reset().astype(np.float32)
+        priv = self._extract_priv().numpy().astype(np.float32)
+        return {"obs": obs, "priv_info": priv}
 
     def step(self, action):
         obs, rew, done, info = self.env.step(action)
-        priv = self._extract_priv()       
-        info["env_params"] = priv.numpy() 
-        return ({"obs": torch.tensor(obs, dtype=torch.float32),
-                 "priv_info": priv},
-                torch.tensor([rew], dtype=torch.float32),
-                torch.tensor(done),
-                info)
+        priv = self._extract_priv().numpy().astype(np.float32)
+        return ({"obs": obs.astype(np.float32), "priv_info": priv},
+                rew, done, info)
 
     def render(self, **kwargs):
         self.env.render()
