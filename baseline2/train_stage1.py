@@ -127,7 +127,7 @@ def main():
         TaskCls = isaacgym_task_map[args.task_name]
     except (ImportError, KeyError):
         # fall‑back to PushOneTask if task map is missing
-        from few_shot_MBRL.baseline2.env.push_one_task import PushOneTask as TaskCls
+        from few_shot_MBRL.baseline2.envs.push_one_task import PushOneTask as TaskCls
 
     raw_env = TaskCls(sim_device=args.device, graphics_device_id=0, headless=args.headless)
     env = DeviceWrapper(raw_env, args.device)
