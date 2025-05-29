@@ -16,7 +16,7 @@ from gym_env.utilities import RandomContextStateWrapper, NormalizeActionSpaceWra
 from scripts.utilities import set_seed
 
 
-def make_env(env_name, dr):
+def make_env(env_name, dr, index=0):
     def _make_env():
         Env = ENV_CONTEXTS[env_name]["constructor"]
         env = Env(render=False)
@@ -31,7 +31,8 @@ def main(args):
     # Set the random seed for reproducibility
     set_seed(args.seed)
 
-    env = DummyVecEnv([make_env(args.env_name, args.dr) for _ in range(args.n_envs)])
+    # env = DummyVecEnv([make_env(args.env_name, args.dr) for _ in range(args.n_envs)])
+    env = SubprocVecEnv([make_env(args.env_name, args.dr, i) for i in range(args.n_envs)])
 
     # Initialize Weights and Biases (W&B) for experiment tracking
     run = wandb.init(
@@ -70,7 +71,7 @@ def main(args):
         model = Policy.load(args.pre_trained_model, env, verbose=1, **param)
     else:
         model = Policy(
-            "MlpPolicy", env, verbose=1, tensorboard_log=tensorboard_log, **param
+            "MlpPolicy", env, verbose=1, tensorboard_log=tensorboard_log, **param, n_steps=8
         )
     model.learn(
         total_timesteps=args.total_timesteps,
