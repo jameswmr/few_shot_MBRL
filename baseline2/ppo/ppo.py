@@ -1,11 +1,3 @@
-# --------------------------------------------------------
-# PPO Stage-1 – Push-One compatible (v3-full)
-# --------------------------------------------------------
-#  * 支援單或多 actor（num_actors）
-#  * 支援 action_dim = 1 或 >1
-#  * 若 env.step() 回傳 Python scalar reward / done 亦可正常運作
-# --------------------------------------------------------
-
 from __future__ import annotations
 
 import os
@@ -182,15 +174,16 @@ class PPO:
             fps_last = self.batch / (time.time() - last + 1e-8)
             last = time.time()
             print(
-                f"Epoch {self.epoch:03d} | Steps {self.agent_steps/1e6:5.1f}M | "
+                f"Epoch {self.epoch:03d} | Steps {self.agent_steps/1e6:5.5f}M | "
                 f"FPS {fps_total:7.1f} / {fps_last:7.1f} | "
-                f"Collect {self.collect_time/60:5.1f}m | Train {self.train_time/60:5.1f}m | "
-                f"Best {self.best_reward:7.2f}"
+                f"Collect {self.collect_time/60:5.5f}m | Train {self.train_time/60:5.5f}m | "
+                f"Best {self.best_reward:7.7f}"
             )
             self._write_stats(a_l, c_l, b_l, ent, kl)
 
             # snapshots
             mean_rew = self.ep_ret.get_mean()
+            print (mean_rew)
             if self.save_freq > 0 and self.epoch % self.save_freq == 0:
                 name = f"ep{self.epoch:03d}_step{int(self.agent_steps/1e6):04}M_rew{mean_rew:.2f}"
                 self._save(os.path.join(self.nn_dir, name))
@@ -282,9 +275,9 @@ class PPO:
     def _collect_rollout(self):
         self.model.eval(); self.obs_ms.eval(); self.val_ms.eval()
         for t in range(self.horizon):
-            if self.dones.item():                        # True → episode terminated
+            if torch.all(self.dones).item():                        
                 self.obs = self.env.reset()
-                self.dones = torch.zeros_like(self.dones)      # 清掉 done 狀態
+                self.dones = torch.zeros_like(self.dones)      
                 self.current_ret.zero_()
                 self.current_len.zero_()
                 

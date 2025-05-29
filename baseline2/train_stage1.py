@@ -1,15 +1,4 @@
 #!/usr/bin/env python
-"""
-Stage‑1 PPO training **without Hydra**.
-Run with for example:
-    python -m few_shot_MBRL.baseline2.train_stage1 \
-           --device cuda:0 --num_steps 1_000_000
-
-This version adds a DeviceWrapper so that all tensors
-returned by the environment live on the same device as
-the policy (fixing the cuda vs cpu mismatch you hit in
-RunningMeanStd).
-"""
 
 from __future__ import annotations
 
@@ -21,9 +10,6 @@ import gym
 import numpy as np
 import torch
 
-# -----------------------------------------------------------------------------
-#  util helpers
-# -----------------------------------------------------------------------------
 class AttrDict(dict):
     """dict that also supports attribute access (x.y)."""
 
@@ -37,7 +23,7 @@ def make_config(
     num_steps: int,
     *,
     horizon_length: int = 16,
-    num_actors: int = 8,
+    num_actors: int = 1,
 ) -> AttrDict:
     """Return an AttrDict configuration understood by PPO."""
 
@@ -89,9 +75,6 @@ def make_config(
     return cfg
 
 
-# -----------------------------------------------------------------------------
-#  Environment device wrapper
-# -----------------------------------------------------------------------------
 class DeviceWrapper(gym.Wrapper):
     """Move all tensors produced by the env to the desired device.
     Also converts torch actions ➔ numpy before passing into the raw env,
@@ -102,7 +85,6 @@ class DeviceWrapper(gym.Wrapper):
         super().__init__(env)
         self.device = device
 
-    # helper ------------------------------------------------------------------
     def _to_device(self, obj):
         if isinstance(obj, torch.Tensor):
             return obj.to(self.device)
@@ -110,7 +92,6 @@ class DeviceWrapper(gym.Wrapper):
             return {k: self._to_device(v) for k, v in obj.items()}
         return obj
 
-    # gym API -----------------------------------------------------------------
     def reset(self):
         obs = self.env.reset()
         return self._to_device(obs)
@@ -128,9 +109,6 @@ class DeviceWrapper(gym.Wrapper):
         return obs, reward, done, info
 
 
-# -----------------------------------------------------------------------------
-#  Main entry
-# -----------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser()
@@ -144,9 +122,6 @@ def main():
     os.makedirs(args.out_dir, exist_ok=True)
     cfg = make_config(args.device, args.out_dir, args.num_steps)
 
-    # ---------------------------------------------------------------------
-    #  build environment
-    # ---------------------------------------------------------------------
     try:
         from few_shot_MBRL.baseline2.tasks import isaacgym_task_map
         TaskCls = isaacgym_task_map[args.task_name]
@@ -156,10 +131,18 @@ def main():
 
     raw_env = TaskCls(sim_device=args.device, graphics_device_id=0, headless=args.headless)
     env = DeviceWrapper(raw_env, args.device)
+    # def make_env(seed):
+    #     def _thunk():
+    #         env = TaskCls(sim_device=args.device, graphics_device_id=0, headless=args.headless)
+    #         env.seed(seed)
+    #         return DeviceWrapper(env, args.device)
+    #     return _thunk
 
-    # ---------------------------------------------------------------------
-    #  train
-    # ---------------------------------------------------------------------
+    # if args.num_actors > 1:
+    # env = gym.vector.SyncVectorEnv([make_env(s) for s in range(8)])
+    # else:
+    #     env = DeviceWrapper(raw_env, args.device)
+
     from few_shot_MBRL.baseline2.ppo.ppo import PPO
 
     agent = PPO(env, args.out_dir, cfg)
