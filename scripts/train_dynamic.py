@@ -8,6 +8,8 @@ import wandb
 from torch.utils.data import Dataset, Subset
 import numpy as np
 from scripts.utilities import parse_argument, set_seed
+from datetime import datetime
+import os
 
 class TrajectoryDataset(Dataset):
     def __init__(self, data_dict):
@@ -172,12 +174,7 @@ class RNNModel(nn.Module):
         act_dim = 4,
         output_dim = 2,
         hidden_dim = 32,
-        lr = 1e-3,
-        data_dir = 'data.pt',
-        epoches = 1000,
-        logger = None,
         device = "cuda:0",
-        output_dir = "best_dynamic_model.pt"
     ):
         super().__init__()
         input_dim = obs_dim + act_dim
@@ -186,37 +183,57 @@ class RNNModel(nn.Module):
         self.device = device
         self.rnn.to(self.device)
         self.fc.to(self.device)
-        self.lr = lr
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
-        self.loss_fn = torch.nn.MSELoss()
-        dataset = torch.load(f'data/{data_dir}')
-        self.dataset = {}
-        for key, values in dataset.items():
-            self.dataset[key] = values
-        self.dataset = RnnTrajectoryDataset(self.dataset)
-        self.eval_interval = 1
-        self.batch_size = 256
-        self.epoches = epoches
-        self.output_dir = output_dir
-        self.logger = logger
+
+        self.obs_dim = obs_dim
+        self.act_dim = act_dim
+        self.output_dim = output_dim
+        self.hidden_dim = hidden_dim
         
     def forward(self, obs, act, time):
         # x: [B, T, D]
+        if len(obs.shape) == 2:
+            obs = obs.unsqueeze(1).repeat(1, time, 1)
+            act = act.unsqueeze(1).repeat(1, time, 1)
+
         x = torch.cat([obs, act], dim=2)
         rnn_out, _ = self.rnn(x)       
         return self.fc(rnn_out)
-    def fit(self):
+    
+    def fit(self,
+            lr = 1e-3,
+            data_dir = 'data.pt',
+            epoches = 1000,
+            batch_size = 256,
+            eval_interval = 1,
+        ):
+
+        optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+        loss_fn = torch.nn.MSELoss()
+        dataset = torch.load(f'data/{data_dir}')
+        dataset = {}
+        for key, values in dataset.items():
+            dataset[key] = values
+        dataset = RnnTrajectoryDataset(dataset)
+
+        run_name = f"dynamic_lstm_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+        output_dir = f"./output/{run_name}"
+        logger = wandb.init(
+            project='ev_drl',
+            name=run_name,
+            dir=output_dir
+        )
+        os.mkdir(os.path.join(output_dir, "checkpoint/"))
+
         best_val_loss = float('inf')
         best_model_state = None
 
+        train_size = int(0.8 * len(dataset))
+        val_size = len(dataset) - train_size
+        train_set, val_set = random_split(dataset, [train_size, val_size])
+        train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
+        val_loader = DataLoader(val_set, batch_size=batch_size)
 
-        train_size = int(0.8 * len(self.dataset))
-        val_size = len(self.dataset) - train_size
-        train_set, val_set = random_split(self.dataset, [train_size, val_size])
-        train_loader = DataLoader(train_set, batch_size=self.batch_size, shuffle=True)
-        val_loader = DataLoader(val_set, batch_size=self.batch_size)
-
-        for epoch in tqdm(range(self.epoches)):
+        for epoch in tqdm(range(epoches)):
             total_train_loss = 0
             for obs, action, time, state in train_loader:
                 obs = obs.to(self.device).float()
@@ -225,20 +242,20 @@ class RNNModel(nn.Module):
                 state = state.to(self.device).float()
 
                 pred_state = self.forward(obs, action, time)
-                loss = self.loss_fn(pred_state, state)
+                loss = loss_fn(pred_state, state)
 
-                self.optimizer.zero_grad()
+                optimizer.zero_grad()
                 loss.backward()
-                self.optimizer.step()
+                optimizer.step()
                 total_train_loss += loss.item() * obs.size(0)
 
             avg_train_loss = total_train_loss / len(train_loader.dataset)
-            if self.logger is not None:
-                self.logger.log({
+            if logger is not None:
+                logger.log({
                     'dynamic_train_loss' : avg_train_loss,
                 }, step=epoch)
 
-            if epoch % self.eval_interval == 0:
+            if epoch % eval_interval == 0:
                 total_val_loss = 0
                 with torch.no_grad():
                     for obs, action, time, state in val_loader:
@@ -248,24 +265,27 @@ class RNNModel(nn.Module):
                         state = state.to(self.device).float()
 
                         pred_state = self.forward(obs, action, time)
-                        loss = self.loss_fn(pred_state, state)
+                        loss = loss_fn(pred_state, state)
                         total_val_loss += loss.item() * obs.size(0)
                     
 
                 avg_val_loss = total_val_loss / len(val_loader.dataset)
                 print(f"Epoch {epoch:3d} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
-                if self.logger is not None:
-                    self.logger.log({
+                if logger is not None:
+                    logger.log({
                         "eval/loss": avg_val_loss,
                     }, step=epoch)
 
                 if avg_val_loss < best_val_loss:
                     best_val_loss = avg_val_loss
                     best_model_state = self.state_dict()
-                    torch.save(best_model_state, f'output/{self.output_dir}')
+                    torch.save(best_model_state, os.path.join(output_dir, "checkpoint/", f"epoch_{epoch}.ckpt"))
                     print(">> Saved best model")
             
             print(f"Epoch {epoch:3d} | Train Loss: {avg_train_loss:.5f}")
+        
+        torch.save(best_model_state, os.path.join(output_dir, "checkpoint/", f"latest.ckpt"))
+        print(">> Saved latest model")
         print("Training finished. Best validation loss:", best_val_loss)
 
 if __name__ == '__main__':
