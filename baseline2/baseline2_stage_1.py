@@ -16,6 +16,7 @@ from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.utils import set_random_seed
+from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
 
 try:
     import wandb
@@ -163,7 +164,13 @@ def main():
         verbose=1,
     )
 
-    callback = None
+    checkpoint_callback = CheckpointCallback(
+        save_freq=10_000 // args.n_envs,  # freq is per environment step
+        save_path=os.path.dirname(args.save_path),
+        name_prefix="ckpt"
+    )
+
+    callbacks = [checkpoint_callback]
     run = None
     if args.wandb:
         if wandb is None or WandbCallback is None:
@@ -177,13 +184,17 @@ def main():
             monitor_gym=True,
             save_code=True,
         )
-        callback = WandbCallback(
+        callbacks.append(WandbCallback(
             gradient_save_freq=100,
             model_save_path=os.path.dirname(args.save_path),
             verbose=2,
-        )
+        ))
 
-    model.learn(total_timesteps=args.total_timesteps, callback=callback)
+    model.learn(
+        total_timesteps=args.total_timesteps,
+        callback=CallbackList(callbacks),
+        log_interval=10,
+    )
 
     os.makedirs(os.path.dirname(args.save_path), exist_ok=True)
     model.save(args.save_path)
