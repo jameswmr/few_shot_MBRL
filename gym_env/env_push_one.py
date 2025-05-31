@@ -146,8 +146,9 @@ class PusherOneSingleAction(gym.Env):
         # process observations
         observation = self.get_obs()
         done = True
+        final_reward = -np.linalg.norm(np.array(states['cup_pos'][-1][:2]) - np.array(self.env.target_pos[:2]))
         info = {
-            "rewards": rewards,
+            "rewards": final_reward,
             **states,
             "success": self.env._check_success(),
             "dist_to_goal": self.env.get_cup_to_goal(),
@@ -156,7 +157,7 @@ class PusherOneSingleAction(gym.Env):
             "contact_wall": self.env.check_contact_with_wall(),
             "on_edge": self.env.check_on_edge(),
         }
-        final_reward = -np.linalg.norm(np.array(info['cup_pos'][-1][:2]) - np.array(self.env.target_pos[:2]))
+        
         return observation, final_reward, done, info
 
     def set_knob_vel(self, action, push_time):
