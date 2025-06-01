@@ -1,17 +1,15 @@
-from few_shot_MBRL.baseline2.baseline2_stage_1 import PushExtractor, make_env
+from few_shot_MBRL.baseline2.baseline2_stage_1 import make_env
 import torch
 import torch.nn as nn
 import argparse
-from stable_baselines3 import PPO
-from stable_baselines3.common.utils import set_random_seed
-from copy import deepcopy
 import numpy as np
 from torch.utils.data import DataLoader
 import os
 from tqdm import tqdm
-import threading
 import concurrent.futures
 import pickle
+from random import uniform
+import time
 
 ACTION_DIM = 4
 OBS_DIM = 2
@@ -52,10 +50,11 @@ def get_traj(info):
     return np.array(state_traj)
 
 
-def generate_one_sample(task_name, seed):
+def generate_one_sample(task_name):
     headless = True
     state_dim = 2
     priv_dim = 9
+    seed = int(time.time())
 
     env = make_env(task_name, seed, headless, state_dim, priv_dim)()
     obs = env.reset()
@@ -82,8 +81,6 @@ if __name__ == "__main__":
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    set_random_seed(args.seed)
-
     if os.path.exists(os.path.join(args.output_dir, f"training_set_{args.training_set_size}.pkl")):
         # Load training set
         with open(os.path.join(args.output_dir, f"training_set_{args.training_set_size}.pkl"), "rb") as f:
@@ -93,14 +90,14 @@ if __name__ == "__main__":
         training_set = []
         pbar = tqdm(range(args.training_set_size), desc="Collecting training set")
         with concurrent.futures.ProcessPoolExecutor(max_workers=args.num_workers) as executor:
-            futures = [executor.submit(generate_one_sample, args.task_name, args.seed) for _ in range(args.training_set_size)]
+            futures = [executor.submit(generate_one_sample, args.task_name) for _ in range(args.training_set_size)]
             for future in concurrent.futures.as_completed(futures):
                 training_set.append(future.result())
                 pbar.update(1)
         
         with open(os.path.join(args.output_dir, f"training_set_{args.training_set_size}.pkl"), "wb") as f:
             pickle.dump(training_set, f)
-
+    
     # Train the adaptation module
     adaptation_module = AdaptationModule()
     train_loader = DataLoader(training_set, batch_size=args.batch_size, shuffle=True)
