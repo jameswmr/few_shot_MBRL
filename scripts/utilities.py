@@ -81,7 +81,7 @@ def parse_argument():
         "--dr", type=bool, default=False, help="Enable domain randomization"
     )
     parser.add_argument(
-        "--n_episodes", type=int, default=10000, help="Data Collection for n episodes"
+        "--n_episodes", type=int, default=100, help="Data Collection for n episodes"
     )
     parser.add_argument(
         "--device", type=str, default="cuda:0", help="Set device"

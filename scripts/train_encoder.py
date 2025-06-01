@@ -1,3 +1,4 @@
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -8,6 +9,7 @@ import wandb
 from torch.utils.data import Dataset
 from datetime import datetime
 import os
+from scripts.train_dynamic import RNNModel
 
 import torch
 
@@ -101,7 +103,8 @@ class Encoder(nn.Module):
         output_dim = 6,
         trajectory_dim = 40,
         hidden_dim = 256,
-        device = "cuda"
+        device = "cuda",
+        shot_steps = 10,
     ):
         super().__init__()
         self.conv = nn.Sequential(
@@ -130,6 +133,12 @@ class Encoder(nn.Module):
         self.to(device)
 
         self.normalizer = Normalizer()
+        self.obs_dim = obs_dim
+        self.act_dim = act_dim
+        self.env_param_dim = output_dim
+        self.traj_dim = trajectory_dim
+        self.hidden_dim = hidden_dim
+        self.shot_steps = shot_steps
 
     def forward(self, pred_traj, true_traj, obs, action, normalize=True):
         B = pred_traj.size(0)
@@ -153,6 +162,7 @@ class Encoder(nn.Module):
         return x
 
     def train(self,   
+            dynamic_model: RNNModel,
             lr = 1e-3,
             data_dir = None,
             epochs = 2000,
@@ -186,32 +196,42 @@ class Encoder(nn.Module):
         global_step = 0
 
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs*len(train_loader))
-
+        loss_weights = ((torch.range(1, self.shot_steps) / self.shot_steps) - 1).exp().to(self.device)
+        loss_weights_sum = loss_weights.sum()
 
         for epoch in tqdm(range(epochs)):
             total_train_loss = 0
             for traj, real_traj, obs, action, env_params in train_loader:
                 # normalization
-                traj = self.normalizer.normalize_trajectory(traj)
                 real_traj = self.normalizer.normalize_trajectory(real_traj)
                 obs = self.normalizer.normalize_obs(obs)
                 action = self.normalizer.normalize_action(action)
                 env_params = self.normalizer.normalize_env_params(env_params)
 
-                traj = traj.to(self.device).float()
                 real_traj = real_traj.to(self.device).float()
                 obs = obs.to(self.device).float()
                 action = action.to(self.device).float()
                 env_params = env_params.to(self.device).float()
 
-                pred_env_params = self.forward(traj, real_traj, obs, action, normalize=False)
-                loss = loss_fn(pred_env_params, env_params)
+                losses = []
+                for i in range(self.shot_steps):
+                    traj = dynamic_model.forward(obs, action, time=self.traj_dim).view(real_traj.shape[0], -1)
+                    traj = self.normalizer.normalize_trajectory(traj)
+                    traj = traj.to(self.device).float()
 
+                    pred_env_params = self.forward(traj, real_traj, obs, action, normalize=False)
+                    loss = loss_fn(pred_env_params, env_params)
+                    losses.append(loss)
+
+                    obs[..., -6:] = pred_env_params
+
+                loss = (torch.stack(losses) * loss_weights).sum() / loss_weights_sum
                 optimizer.zero_grad()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.parameters(), 1.0)
                 optimizer.step()
                 scheduler.step()
+
                 raw_loss = loss.cpu().detach().item()
                 total_train_loss += raw_loss * obs.size(0)
                 logger.log({
@@ -241,8 +261,19 @@ class Encoder(nn.Module):
                         action = action.to(self.device).float()
                         env_params = env_params.to(self.device).float()
 
-                        pred_env_params = self.forward(traj, real_traj, obs, action, normalize=False)
-                        loss = loss_fn(pred_env_params, env_params)
+                        losses = []
+                        for i in range(self.shot_steps):
+                            traj = dynamic_model.forward(obs, action, time=self.traj_dim)
+                            traj = self.normalizer.normalize_trajectory(traj)
+                            traj = traj.to(self.device).float()
+
+                            pred_env_params = self.forward(traj, real_traj, obs, action, normalize=False)
+                            loss = loss_fn(pred_env_params, env_params)
+                            losses.append(loss)
+
+                            obs[:, -6:] = pred_env_params
+
+                        loss = (torch.stack(losses) * loss_weights).sum() / loss_weights_sum
                         raw_loss = loss.item()
                         total_val_loss += raw_loss * obs.size(0)
 
@@ -275,10 +306,16 @@ if __name__ == '__main__':
     parser.add_argument('--batch-size', type=int, default=512)
     parser.add_argument('--eval-interval', type=int, default=20)
     parser.add_argument('--hidden-dim', type=int, default=256)
+    parser.add_argument('--shot-steps', type=int, default=10)
+    parser.add_argument('--dynamic-model-ckpt', type=str, default="output/LSTM-checkpoint/best_rnn_32.pt")
     args = parser.parse_args()
 
-    encoder = Encoder(hidden_dim=args.hidden_dim)
+    dynamic_model = RNNModel()
+    dynamic_model.load_state_dict(torch.load(args.dynamic_model_ckpt, map_location='cuda'))
+
+    encoder = Encoder(hidden_dim=args.hidden_dim, shot_steps=args.shot_steps)
     encoder.train(
+        dynamic_model = dynamic_model,
         lr = args.lr,
         data_dir = args.data_dir,
         epochs = args.epochs,
