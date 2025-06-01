@@ -30,9 +30,25 @@ python gym_env/env_push_one.py
 Check scripts/train_task_policy.py for example
 
 # Run baseline2
+
+## Train
+
 ```
+# Stage 1
 python -m few_shot_MBRL.baseline2.baseline2_stage_1 \
     --device cuda:0 --total_timesteps 1_000_000 --n_envs 16 --headless --wandb
+
+# Stage 2
 python -m few_shot_MBRL.baseline2.baseline2_stage_2 \
-    --base_policy_path outputs/baseline2_stage_1/best_model.pth
+    --training_set_size 10000 \
+    --output_dir outputs/baseline2_stage_2 \
+    --num_workers 10
+```
+
+## Evaluate
+
+```
+python -m few_shot_MBRL.baseline2.eval \
+    --am_model outputs/baseline2_stage_2/adaptation_module.pth \
+    --base_policy_model output/stage1_sb3/ckpt_best.zip
 ```
