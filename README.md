@@ -48,7 +48,8 @@ python -m few_shot_MBRL.baseline2.baseline2_stage_2 \
 ## Evaluate
 
 ```
-python -m few_shot_MBRL.baseline2.eval \
+python few_shot_MBRL/baseline2/eval.py \
     --am_model outputs/baseline2_stage_2/adaptation_module.pth \
-    --base_policy_model output/stage1_sb3/ckpt_best.zip
+    --base_policy_model output/stage1_sb3/ckpt_best.zip \
+    --ood
 ```

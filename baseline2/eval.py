@@ -13,6 +13,7 @@ if __name__ == "__main__":
     parser.add_argument("--am_model", type=str, required=True)
     parser.add_argument("--base_policy_model", type=str, required=True)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--ood", action="store_true")
     args = parser.parse_args()
 
     adaptation_module = AdaptationModule()
@@ -26,8 +27,16 @@ if __name__ == "__main__":
     env = make_env("push_one", args.seed, headless, state_dim, priv_dim)()
 
     all_rewards = []
-    for _ in tqdm(range(100)):
+    for _ in tqdm(range(20)):
+
         obs = env.reset()
+
+        # Modify friction for OOD evaluation
+        if args.ood:
+            e_dr_real = env.unwrapped.env.get_context()
+            e_dr_real["dynamic@floor1_table_collision@friction_sliding"] = 0.2
+            e_dr_real["dynamic@floor2_table_collision@friction_sliding"] = 0.2
+            env.unwrapped.env.set_context(e_dr_real)
 
         # Estimate the priv info
         sim_env = deepcopy(env)
