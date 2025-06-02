@@ -64,8 +64,7 @@ python scripts/eval_rl.py --seed 0 --policy_name ppo --sample_train True --dym_d
 
 ## Run ood test
 Change gym_envs/utilities lines 46,47 "dynamic@floor1_table_collision@friction_sliding": [0.02, 0.07] to "dynamic@floor1_table_collision@friction_sliding": [0.02, 0.2] 
-# Run baseline
-Check scripts/train_task_policy.py for example
+
 
 # Run baseline2
 
