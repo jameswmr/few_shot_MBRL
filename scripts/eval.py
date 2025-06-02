@@ -1,6 +1,5 @@
 from scripts.train_dynamic import DynamicModel, RNNModel
-from scripts.train_encoder import  MLPEncoder
-from scripts.train_encoder_yang import Encoder
+from scripts.train_encoder import  Encoder
 from scripts.utilities import set_seed, make_env, parse_argument, generate_sample_train
 from tqdm import tqdm
 import torch
