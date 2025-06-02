@@ -64,3 +64,30 @@ python scripts/eval_rl.py --seed 0 --policy_name ppo --sample_train True --dym_d
 
 ## Run ood test
 Change gym_envs/utilities lines 46,47 "dynamic@floor1_table_collision@friction_sliding": [0.02, 0.07] to "dynamic@floor1_table_collision@friction_sliding": [0.02, 0.2] 
+# Run baseline
+Check scripts/train_task_policy.py for example
+
+# Run baseline2
+
+## Train
+
+```
+# Stage 1
+python -m few_shot_MBRL.baseline2.baseline2_stage_1 \
+    --device cuda:0 --total_timesteps 1_000_000 --n_envs 16 --headless --wandb
+
+# Stage 2
+python -m few_shot_MBRL.baseline2.baseline2_stage_2 \
+    --training_set_size 10000 \
+    --output_dir outputs/baseline2_stage_2 \
+    --num_workers 10
+```
+
+## Evaluate
+
+```
+python few_shot_MBRL/baseline2/eval.py \
+    --am_model outputs/baseline2_stage_2/adaptation_module.pth \
+    --base_policy_model output/stage1_sb3/ckpt_best.zip \
+    --ood
+```

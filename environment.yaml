@@ -1,4 +1,4 @@
-name: EV_DRL
+name: EV_DRL_2
 channels:
   - defaults
   - conda-forge
