@@ -1,3 +1,4 @@
+
 import os
 import sys
 import time
@@ -9,6 +10,7 @@ from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
+from scripts.custom_env import CustomEnv
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from gym_env.utilities import ENV_CONTEXTS, SAC_CONFIG, PPO_CONFIG
@@ -16,13 +18,13 @@ from gym_env.utilities import RandomContextStateWrapper, NormalizeActionSpaceWra
 from scripts.utilities import set_seed
 
 
-def make_env(env_name, dr):
+def make_env(env_name, dr, index=0):
     def _make_env():
+        # print(f"Initializing env {index} in process {os.getpid()}")
         Env = ENV_CONTEXTS[env_name]["constructor"]
         env = Env(render=False)
         env = RandomContextStateWrapper(env, env_name, dr)
         env = NormalizeActionSpaceWrapper(env)
-        env = Monitor(env)
         return env
     return _make_env
 
@@ -31,11 +33,12 @@ def main(args):
     # Set the random seed for reproducibility
     set_seed(args.seed)
 
-    env = DummyVecEnv([make_env(args.env_name, args.dr) for _ in range(args.n_envs)])
-
+    env = DummyVecEnv([make_env(args.env_name, args.dr, i) for i in range(args.n_envs)])
+    # env = CustomEnv()
+    # env = SubprocVecEnv([make_env(args.env_name, args.dr, i) for i in range(args.n_envs)])
     # Initialize Weights and Biases (W&B) for experiment tracking
     run = wandb.init(
-        project=f"train_task_policy_{args.env_name}",
+        project=f"train_task_policy_custom",
         name=f'{args.policy_name}-{time.strftime("%Y-%m-%d-%H-%M")}',
         sync_tensorboard=True,
         config=args,
@@ -52,7 +55,7 @@ def main(args):
         raise ValueError(f"Unsupported policy {args.policy_name}")
 
     # Create the directory to save the model
-    save_path = f"data/policy_model/{args.env_name}/{args.policy_name}/{args.seed}/"
+    save_path = f"output/policy_model/{args.policy_name}/"
     os.makedirs(save_path, exist_ok=True)
 
     # setup tensorboard log
@@ -70,7 +73,7 @@ def main(args):
         model = Policy.load(args.pre_trained_model, env, verbose=1, **param)
     else:
         model = Policy(
-            "MlpPolicy", env, verbose=1, tensorboard_log=tensorboard_log, **param
+            "MlpPolicy", env, verbose=1, tensorboard_log=tensorboard_log, **param, n_steps=8
         )
     model.learn(
         total_timesteps=args.total_timesteps,
@@ -85,12 +88,12 @@ if __name__ == "__main__":
     # Setup argument parser for command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--env_name", type=str, choices=env_names, help="Environment name"
+        "--env_name", type=str, default="push_one", help="Environment name"
     )
     parser.add_argument(
         "--policy_name", type=str, choices=["ppo", "sac"], help="Policy name"
     )
-    parser.add_argument("--n_envs", type=int, help="Number of parallel environments")
+    parser.add_argument("--n_envs", type=int, default=10, help="Number of parallel environments")
     parser.add_argument("--seed", type=int, default=0, help="Random seed")
     parser.add_argument(
         "--total_timesteps",
@@ -106,7 +109,7 @@ if __name__ == "__main__":
     )
     
     parser.add_argument(
-        "--dr", action="store_true", help="Enable domain randomization"
+        "--dr", type=bool, default=False, help="Enable domain randomization"
     )
     # Parse arguments and call the main function
     args = parser.parse_args()

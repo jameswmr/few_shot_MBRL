@@ -47,6 +47,7 @@ class PusherOneSingleAction(gym.Env):
         )
         self.context = {}
         self._seed = None
+        self.target_pos = self.env.target_pos[:2]
 
     def step(self, action, writer=None):
         """
@@ -239,8 +240,8 @@ def main():
     env.reset()
     e_dr_real = env.get_context()
 
-    e_dr_real["dynamic@floor1_table_collision@friction_sliding"] = 0.02
-    e_dr_real["dynamic@floor2_table_collision@friction_sliding"] = 0.02
+    e_dr_real["dynamic@floor1_table_collision@friction_sliding"] = 0.2
+    e_dr_real["dynamic@floor2_table_collision@friction_sliding"] = 0.2
     e_dr_real["dynamic@knob_g0@damping_ratio"] = -3
     e_dr_real["dynamic@x_left_wall_g0@damping_ratio"] = -3
     e_dr_real["dynamic@x_right_wall_g0@damping_ratio"] = -3
@@ -248,7 +249,7 @@ def main():
 
     env.set_context(e_dr_real)
     env.reset()
-    writer = imageio.get_writer("./dummyDemo_video.mp4", fps=env.env.control_freq)
+    writer = imageio.get_writer("./dummyDemo_video_large_friction.mp4", fps=env.env.control_freq)
     damping_range = np.arange(-5, -30, -5)
     for i in range(1):
         e_dr_real["dynamic@knob_g0@damping_ratio"] = damping_range[i]
@@ -265,6 +266,7 @@ def main():
 
         # plot the trajectory of cup
         cup_traj = env.get_state_traj(info)
+        print(len(cup_traj))
         print ("cup_traj", cup_traj[-1])
         print("goal: ", env.env.target_pos)
         print("reward: ", reward)

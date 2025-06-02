@@ -250,6 +250,7 @@ class ContextStateWrapper(gym.Wrapper):
         interested_context = {}
         context_dict = self.env.get_context()
         for context_name in self.interested_context_names:
+            # print(context_name)
             interested_context[context_name] = context_dict[context_name]
         return interested_context
 
@@ -258,12 +259,15 @@ class ContextStateWrapper(gym.Wrapper):
         for context_name in context_dict:
             lb, ub = self.interested_context_range[context_name]
             value = context_dict[context_name]
+            # print(f'{context_name}: {value=}, {lb=}, {ub=}')
             assert lb <= value <= ub
             norm_value = (value - lb) / (ub - lb)
             norm_value = norm_value * 2 - 1.0
             assert -1.0 <= norm_value <= 1.0
             normalized_contexts[context_name] = norm_value
         return normalized_contexts
+
+
 
 
 class RandomContextStateWrapper(ContextStateWrapper):
@@ -275,9 +279,31 @@ class RandomContextStateWrapper(ContextStateWrapper):
         random_context_dict = {}
         for context_name, (lb, ub) in self.interested_context_range.items():
             random_context_dict[context_name] = np.random.uniform(lb, ub)
-        # reset the environment and set the context
         self.env.reset()
         self.env.set_context(random_context_dict)
+        return super().reset()
+
+class SetContextStateWrapper(ContextStateWrapper):
+    def __init__(self, env, env_name, dr):
+        super(SetContextStateWrapper, self).__init__(env, env_name, dr)
+
+    def unnormalize_interested_context(self, normalized_context_dict):
+        unnormalized_contexts = {}
+        for context_name in normalized_context_dict:
+            lb, ub = self.interested_context_range[context_name]
+            norm_value = normalized_context_dict[context_name]
+            assert -1.0 <= norm_value <= 1.0
+            value = (norm_value + 1.0) / 2.0
+            value = value * (ub - lb) + lb
+            assert lb <= value <= ub
+            unnormalized_contexts[context_name] = value
+        return unnormalized_contexts
+
+    def reset(self, normalized_context_dict, puck_pos):
+        self.env.reset()
+        unnormalized_contexts = self.unnormalize_interested_context(normalized_context_dict)
+        self.env.set_context(unnormalized_contexts)
+        self.set_env_params(puck_pos)
         return super().reset()
     
 
