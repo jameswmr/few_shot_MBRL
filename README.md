@@ -90,3 +90,9 @@ python few_shot_MBRL/baseline2/eval.py \
     --base_policy_model output/stage1_sb3/ckpt_best.zip \
     --ood
 ```
+
+# Download our model
+```
+gdown https://drive.google.com/drive/folders/1h5T23qQotc6F39r5wN_4NY-UUmspsiPU?usp=drive_link
+```
+Make sure model is under output/ and data is under data/
