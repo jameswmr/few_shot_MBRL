@@ -29,5 +29,27 @@ python gym_env/env_push_one.py
 # Run baseline
 Check scripts/train_task_policy.py for example
 
-python -m few_shot_MBRL.baseline2.train_stage1
-python -m few_shot_MBRL.baseline2.baseline2_stage_1 --device cuda:0 --total_timesteps 1_000_000 --n_envs 16 --headless --wandb
+# Run baseline2
+
+## Train
+
+```
+# Stage 1
+python -m few_shot_MBRL.baseline2.baseline2_stage_1 \
+    --device cuda:0 --total_timesteps 1_000_000 --n_envs 16 --headless --wandb
+
+# Stage 2
+python -m few_shot_MBRL.baseline2.baseline2_stage_2 \
+    --training_set_size 10000 \
+    --output_dir outputs/baseline2_stage_2 \
+    --num_workers 10
+```
+
+## Evaluate
+
+```
+python few_shot_MBRL/baseline2/eval.py \
+    --am_model outputs/baseline2_stage_2/adaptation_module.pth \
+    --base_policy_model output/stage1_sb3/ckpt_best.zip \
+    --ood
+```
